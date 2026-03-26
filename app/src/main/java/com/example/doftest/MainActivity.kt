@@ -1,6 +1,8 @@
 package com.example.doftest
 
 import android.content.Context
+import android.view.MotionEvent
+import android.view.ViewParent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -9,9 +11,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.draggable
-import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -20,9 +19,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -60,13 +57,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.unit.dp
 import com.example.doftest.ui.theme.DoFTestTheme
 import org.json.JSONArray
@@ -344,6 +343,7 @@ fun DofCalculatorApp() {
     var presetName by rememberSaveable { mutableStateOf("") }
     var sensorMenuExpanded by remember { mutableStateOf(false) }
     var detailsExpanded by rememberSaveable { mutableStateOf(savedSession?.detailsExpanded ?: false) }
+    var isSubjectDragActive by remember { mutableStateOf(false) }
 
     val sensorFormat = sensorFormats[sensorIndex]
     val aperture = apertureStops[apertureIndex]
@@ -408,16 +408,10 @@ fun DofCalculatorApp() {
                         )
                     )
                 )
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(rememberScrollState(), enabled = !isSubjectDragActive)
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Text(
-                text = "被写界深度シミュレーター",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-            )
-
             InputCard(
                 sensorFormat = sensorFormat,
                 detailsExpanded = detailsExpanded,
@@ -448,6 +442,7 @@ fun DofCalculatorApp() {
                     subjectDistanceM = subjectDistanceM.toDouble(),
                     subjectDistanceMaxM = subjectDistanceMaxM,
                     onSubjectDistanceChange = { subjectDistanceM = it.toFloat() },
+                    onSubjectDragActiveChange = { isSubjectDragActive = it },
                     focalLengthMm = focalLengthMm.toDouble(),
                     result = it,
                 )
@@ -757,6 +752,7 @@ private fun VisualizationCard(
     subjectDistanceM: Double,
     subjectDistanceMaxM: Float,
     onSubjectDistanceChange: (Double) -> Unit,
+    onSubjectDragActiveChange: (Boolean) -> Unit,
     focalLengthMm: Double,
     result: DofResult,
 ) {
@@ -783,6 +779,7 @@ private fun VisualizationCard(
                     subjectDistanceM = subjectDistanceM,
                     subjectDistanceMaxM = subjectDistanceMaxM,
                     onSubjectDistanceChange = onSubjectDistanceChange,
+                    onSubjectDragActiveChange = onSubjectDragActiveChange,
                     focalLengthMm = focalLengthMm,
                     result = result,
                 )
@@ -800,10 +797,12 @@ private fun VisualizationCard(
 }
 
 @Composable
+@OptIn(ExperimentalComposeUiApi::class)
 private fun DofDiagram(
     subjectDistanceM: Double,
     subjectDistanceMaxM: Float,
     onSubjectDistanceChange: (Double) -> Unit,
+    onSubjectDragActiveChange: (Boolean) -> Unit,
     focalLengthMm: Double,
     result: DofResult,
 ) {
@@ -814,18 +813,35 @@ private fun DofDiagram(
     val dofColor = Color(0xFF5E8B7E)
     val hyperfocalColor = Color(0xFFC97C5D)
     val graphMaxMm = (result.hyperfocalMm * 1.2).coerceAtLeast(100.0)
+    var isDraggingSubject by remember { mutableStateOf(false) }
+    val view = LocalView.current
+
+    fun requestDisallowIntercept(disallow: Boolean) {
+        var parent: ViewParent? = view.parent
+        while (parent != null) {
+            parent.requestDisallowInterceptTouchEvent(disallow)
+            parent = parent.parent
+        }
+    }
+
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val density = LocalDensity.current
         val widthPx = with(density) { maxWidth.toPx() }
         val leftPaddingPx = with(density) { 26.dp.toPx() }
         val rightPaddingPx = with(density) { 18.dp.toPx() }
         val usableWidthPx = (widthPx - leftPaddingPx - rightPaddingPx).coerceAtLeast(1f)
-        val handleWidthPx = with(density) { 28.dp.toPx() }
+        val hitSlopPx = maxOf(with(density) { 32.dp.toPx() }, widthPx * 0.06f)
 
         fun mapX(distanceMm: Double): Float {
             val normalized = (distanceMm / graphMaxMm).toFloat()
             return (leftPaddingPx + (normalized * usableWidthPx))
                 .coerceIn(leftPaddingPx, widthPx - rightPaddingPx)
+        }
+
+        fun xToDistance(x: Float): Float {
+            val normalized = ((x - leftPaddingPx) / usableWidthPx).coerceIn(0f, 1f)
+            val distanceM = ((graphMaxMm * normalized) / 1000.0).toFloat()
+            return distanceM.snapToSubjectDistance(subjectDistanceMaxM)
         }
 
         val subjectX = mapX(subjectDistanceMm)
@@ -900,24 +916,42 @@ private fun DofDiagram(
 
         Box(
             modifier = Modifier
-                .offset {
-                    IntOffset(
-                        x = (subjectX - handleWidthPx / 2f).roundToInt(),
-                        y = 0,
-                    )
+                .fillMaxSize()
+                .pointerInteropFilter { event ->
+                    when (event.actionMasked) {
+                        MotionEvent.ACTION_DOWN -> {
+                            val startedOnHandle =
+                                kotlin.math.abs(event.x - subjectX) <= hitSlopPx
+                            isDraggingSubject = startedOnHandle
+                            if (startedOnHandle) {
+                                onSubjectDragActiveChange(true)
+                                requestDisallowIntercept(true)
+                                onSubjectDistanceChange(xToDistance(event.x).toDouble())
+                            }
+                            startedOnHandle
+                        }
+
+                        MotionEvent.ACTION_MOVE -> {
+                            if (!isDraggingSubject) {
+                                false
+                            } else {
+                                onSubjectDistanceChange(xToDistance(event.x).toDouble())
+                                true
+                            }
+                        }
+
+                        MotionEvent.ACTION_UP,
+                        MotionEvent.ACTION_CANCEL -> {
+                            val wasDragging = isDraggingSubject
+                            isDraggingSubject = false
+                            onSubjectDragActiveChange(false)
+                            requestDisallowIntercept(false)
+                            wasDragging
+                        }
+
+                        else -> false
+                    }
                 }
-                .fillMaxHeight()
-                .width(with(density) { handleWidthPx.toDp() })
-                .draggable(
-                    orientation = Orientation.Horizontal,
-                    state = rememberDraggableState { delta ->
-                        val deltaDistanceM = ((delta / usableWidthPx) * graphMaxMm / 1000.0).toFloat()
-                        val updatedDistance = (subjectDistanceM.toFloat() + deltaDistanceM)
-                            .coerceIn(0.1f, subjectDistanceMaxM)
-                        val snappedDistance = updatedDistance.snapToSubjectDistance(subjectDistanceMaxM)
-                        onSubjectDistanceChange(snappedDistance.toDouble())
-                    },
-                )
         )
     }
 
