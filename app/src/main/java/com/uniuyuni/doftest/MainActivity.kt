@@ -131,6 +131,11 @@ data class DofSessionState(
     val detailsExpanded: Boolean,
 )
 
+private data class HyperfocalDisplayInfo(
+    val nearText: String,
+    val hyperfocalText: String,
+)
+
 enum class CocMode(val label: String) {
     PIXEL("ピクセル"),
     PRINT("プリント"),
@@ -156,8 +161,11 @@ object DofCalculator {
         val focalLength = focalLengthMm.coerceAtLeast(0.1)
         val subjectDistanceMm = (subjectDistanceM * 1000.0).coerceAtLeast(focalLength + 1.0)
         val hyperfocalMm = (focalLength * focalLength) / (aperture * cocMm) + focalLength
-        val denominatorNear = hyperfocalMm + (subjectDistanceMm - focalLength)
-        val nearLimitMm = (hyperfocalMm * subjectDistanceMm) / denominatorNear
+        val nearLimitMm = calculateNearLimitMm(
+            hyperfocalMm = hyperfocalMm,
+            subjectDistanceMm = subjectDistanceMm,
+            focalLengthMm = focalLength,
+        )
         val farLimitMm = if (subjectDistanceMm >= hyperfocalMm - HYPERFOCAL_TOLERANCE_MM) {
             null
         } else {
@@ -196,9 +204,21 @@ object DofCalculator {
         return maxOf(baseCocMm, airyDiskDiameterMm)
     }
 
+    fun calculateNearLimitMm(
+        hyperfocalMm: Double,
+        subjectDistanceMm: Double,
+        focalLengthMm: Double,
+    ): Double {
+        val denominatorNear = hyperfocalMm + (subjectDistanceMm - focalLengthMm)
+        return (hyperfocalMm * subjectDistanceMm) / denominatorNear
+    }
+
     fun hyperfocalFrontDepthMm(hyperfocalMm: Double, focalLengthMm: Double): Double {
-        val denominatorNear = hyperfocalMm + (hyperfocalMm - focalLengthMm)
-        val nearAtHyperfocalMm = (hyperfocalMm * hyperfocalMm) / denominatorNear
+        val nearAtHyperfocalMm = calculateNearLimitMm(
+            hyperfocalMm = hyperfocalMm,
+            subjectDistanceMm = hyperfocalMm,
+            focalLengthMm = focalLengthMm,
+        )
         return (hyperfocalMm - nearAtHyperfocalMm).coerceAtLeast(0.0)
     }
 
@@ -307,6 +327,9 @@ private val apertureStops = listOf(1.0, 1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0
 private fun cocModeFromName(name: String): CocMode =
     CocMode.entries.firstOrNull { it.name == name } ?: CocMode.PRINT
 
+private fun isAtSubjectDistanceMax(currentValue: Float, maxValue: Float): Boolean =
+    kotlin.math.abs(currentValue - maxValue) <= 0.0001f
+
 @Composable
 fun DofCalculatorApp() {
     val context = LocalContext.current
@@ -349,7 +372,7 @@ fun DofCalculatorApp() {
     val aperture = apertureStops[apertureIndex]
     val cocMode = remember(cocModeName) { cocModeFromName(cocModeName) }
     val megapixels = megapixelsInput.toDoubleOrNull()?.coerceAtLeast(0.1)
-    val result = megapixels?.let {
+    val rawResult = megapixels?.let {
         DofCalculator.calculate(
             sensorFormat = sensorFormat,
             megapixels = it,
@@ -360,7 +383,25 @@ fun DofCalculatorApp() {
             considerAiryDisk = considerAiryDisk,
         )
     }
-    val subjectDistanceMaxM = (result?.hyperfocalMm?.div(1000.0) ?: 30.0).coerceAtLeast(0.1).toFloat()
+    val subjectDistanceMaxM = (rawResult?.hyperfocalMm?.div(1000.0) ?: 30.0).coerceAtLeast(0.1).toFloat()
+    val effectiveSubjectDistanceM = if (
+        rawResult != null && isAtSubjectDistanceMax(subjectDistanceM, subjectDistanceMaxM)
+    ) {
+        rawResult.hyperfocalMm / 1000.0
+    } else {
+        subjectDistanceM.toDouble()
+    }
+    val result = megapixels?.let {
+        DofCalculator.calculate(
+            sensorFormat = sensorFormat,
+            megapixels = it,
+            focalLengthMm = focalLengthMm.toDouble(),
+            aperture = aperture,
+            subjectDistanceM = effectiveSubjectDistanceM,
+            cocMode = cocMode,
+            considerAiryDisk = considerAiryDisk,
+        )
+    }
 
     LaunchedEffect(subjectDistanceMaxM) {
         if (subjectDistanceM > subjectDistanceMaxM) {
@@ -439,7 +480,7 @@ fun DofCalculatorApp() {
 
             result?.let {
                 VisualizationCard(
-                    subjectDistanceM = subjectDistanceM.toDouble(),
+                    subjectDistanceM = effectiveSubjectDistanceM,
                     subjectDistanceMaxM = subjectDistanceMaxM,
                     onSubjectDistanceChange = { subjectDistanceM = it.toFloat() },
                     onSubjectDragActiveChange = { isSubjectDragActive = it },
@@ -450,7 +491,7 @@ fun DofCalculatorApp() {
 
             SummaryCard(
                 sensorFormat = sensorFormat,
-                subjectDistanceM = subjectDistanceM.toDouble(),
+                subjectDistanceM = effectiveSubjectDistanceM,
                 megapixels = megapixels,
                 result = result,
             )
@@ -807,7 +848,12 @@ private fun DofDiagram(
     result: DofResult,
 ) {
     val subjectDistanceMm = subjectDistanceM * 1000.0
-    val farLimitMm = result.farLimitMm ?: (subjectDistanceMm * 1.8)
+    val isAtHyperfocal = result.farLimitMm == null
+    val hyperfocalDisplayInfo = buildHyperfocalDisplayInfo(result, focalLengthMm)
+    val displayFocusMm = if (isAtHyperfocal) result.hyperfocalMm else subjectDistanceMm
+    val displayNearMm = result.nearLimitMm
+    val displayFarMm = if (isAtHyperfocal) null else result.farLimitMm
+    val farLimitMm = displayFarMm ?: (displayFocusMm * 1.8)
     val focusColor = MaterialTheme.colorScheme.primary
     val labelColor = Color(0xFF3A322D)
     val dofColor = Color(0xFF5E8B7E)
@@ -844,7 +890,7 @@ private fun DofDiagram(
             return distanceM.snapToSubjectDistance(subjectDistanceMaxM)
         }
 
-        val subjectX = mapX(subjectDistanceMm)
+        val subjectX = mapX(displayFocusMm)
 
         Canvas(modifier = Modifier.fillMaxSize()) {
             val leftPadding = 26.dp.toPx()
@@ -860,7 +906,7 @@ private fun DofDiagram(
                     .coerceIn(leftPadding, size.width - rightPadding)
             }
 
-            val nearX = mapCanvasX(result.nearLimitMm)
+            val nearX = mapCanvasX(displayNearMm)
             val farX = mapCanvasX(minOf(farLimitMm, graphMaxMm))
             val hyperfocalX = mapCanvasX(minOf(result.hyperfocalMm, graphMaxMm))
 
@@ -965,7 +1011,7 @@ private fun DofDiagram(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Text(
-                text = "被写体距離 ${formatDistanceMeters(subjectDistanceMm)}",
+                text = "被写体距離 ${formatDistanceMeters(displayFocusMm)}",
                 style = MaterialTheme.typography.labelMedium,
                 color = labelColor,
             )
@@ -978,18 +1024,30 @@ private fun DofDiagram(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                DiagramDistanceLabel("Near", formatDistanceMeters(result.nearLimitMm))
-                DiagramDistanceLabel("Focus", formatDistanceMeters(subjectDistanceMm))
-                DiagramDistanceLabel("Far", result.farLimitMm?.let(::formatDistanceMeters) ?: "∞")
+                DiagramDistanceLabel(
+                    "Near",
+                    if (isAtHyperfocal) hyperfocalDisplayInfo.nearText else formatDistanceMeters(displayNearMm),
+                )
+                DiagramDistanceLabel(
+                    "Focus",
+                    if (isAtHyperfocal) hyperfocalDisplayInfo.hyperfocalText else formatDistanceMeters(displayFocusMm),
+                )
+                DiagramDistanceLabel("Far", displayFarMm?.let(::formatDistanceMeters) ?: "∞")
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                DiagramDistanceLabel("DoF", buildDofRangeText(result, subjectDistanceMm))
+                DiagramDistanceLabel(
+                    "DoF",
+                    buildDofRangeText(
+                        frontDepthMm = (displayFocusMm - displayNearMm).coerceAtLeast(0.0),
+                        backDepthMm = displayFarMm?.minus(displayFocusMm)?.coerceAtLeast(0.0),
+                    ),
+                )
                 DiagramDistanceLabel(
                     "Hyperfocal",
-                    buildHyperfocalInfo(result, focalLengthMm),
+                    "${hyperfocalDisplayInfo.nearText} / ${hyperfocalDisplayInfo.hyperfocalText}",
                 )
             }
         }
@@ -1026,21 +1084,35 @@ private fun DiagramDistanceLabel(label: String, value: String) {
     }
 }
 
-private fun buildDofRangeText(result: DofResult, subjectDistanceMm: Double): String {
-    val front = formatDistance(result.frontDepthMm(subjectDistanceMm))
-    val back = result.backDepthMm(subjectDistanceMm)?.let(::formatDistance) ?: "∞"
+private fun buildDofRangeText(frontDepthMm: Double, backDepthMm: Double?): String {
+    val front = formatDistance(frontDepthMm)
+    val back = backDepthMm?.let(::formatDistance) ?: "∞"
     return "$front / $back"
 }
 
-private fun buildHyperfocalInfo(result: DofResult, focalLengthMm: Double): String {
-    val hyperfocal = formatDistanceMeters(result.hyperfocalMm)
-    val frontDepth = formatDistance(
-        DofCalculator.hyperfocalFrontDepthMm(
-            hyperfocalMm = result.hyperfocalMm,
-            focalLengthMm = focalLengthMm,
-        )
+private fun buildHyperfocalDisplayInfo(
+    result: DofResult,
+    focalLengthMm: Double,
+): HyperfocalDisplayInfo {
+    val frontDepthMm = DofCalculator.hyperfocalFrontDepthMm(
+        hyperfocalMm = result.hyperfocalMm,
+        focalLengthMm = focalLengthMm,
     )
-    return "$frontDepth / $hyperfocal"
+    val roundedHyperfocalMm = roundMetersForDisplay(result.hyperfocalMm)
+    val roundedFrontDepthMm = if (frontDepthMm >= 1000.0) {
+        roundMetersForDisplay(frontDepthMm)
+    } else {
+        round(frontDepthMm).toDouble()
+    }
+    val nearDisplayMm = (roundedHyperfocalMm - roundedFrontDepthMm).coerceAtLeast(0.0)
+    return HyperfocalDisplayInfo(
+        nearText = if (nearDisplayMm >= 1000.0) {
+            formatDistanceMeters(nearDisplayMm)
+        } else {
+            formatDistance(nearDisplayMm)
+        },
+        hyperfocalText = formatDistanceMeters(roundedHyperfocalMm),
+    )
 }
 
 @Composable
@@ -1150,6 +1222,8 @@ private fun formatNumber(value: Double, decimals: Int): String {
 private fun formatAperture(value: Double): String = formatNumber(value, 1)
 
 private fun formatDistanceMeters(distanceMm: Double): String = "${formatNumber(distanceMm / 1000.0, 2)} m"
+
+private fun roundMetersForDisplay(distanceMm: Double): Double = round(distanceMm / 10.0) * 10.0
 
 private fun Float.roundToIntValue(): Float = round(this).toFloat()
 
