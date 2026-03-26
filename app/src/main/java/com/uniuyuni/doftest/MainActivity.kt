@@ -1,4 +1,4 @@
-package com.example.doftest
+package com.uniuyuni.doftest
 
 import android.content.Context
 import android.view.MotionEvent
@@ -67,7 +67,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.unit.dp
-import com.example.doftest.ui.theme.DoFTestTheme
+import com.uniuyuni.doftest.ui.theme.DoFTestTheme
 import org.json.JSONArray
 import org.json.JSONObject
 import kotlin.math.round
@@ -935,6 +935,8 @@ private fun DofDiagram(
                             if (!isDraggingSubject) {
                                 false
                             } else {
+                                onSubjectDragActiveChange(true)
+                                requestDisallowIntercept(true)
                                 onSubjectDistanceChange(xToDistance(event.x).toDouble())
                                 true
                             }

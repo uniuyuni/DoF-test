@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.doftest"
+    namespace = "com.uniuyuni.doftest"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
@@ -12,7 +12,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.doftest"
+        applicationId = "com.uniuyuni.doftest"
         minSdk = 24
         targetSdk = 36
         versionCode = 2
@@ -28,6 +28,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {

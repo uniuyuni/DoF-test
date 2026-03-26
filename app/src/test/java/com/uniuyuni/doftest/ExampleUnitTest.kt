@@ -1,4 +1,4 @@
-package com.example.doftest
+package com.uniuyuni.doftest
 
 import org.junit.Test
 

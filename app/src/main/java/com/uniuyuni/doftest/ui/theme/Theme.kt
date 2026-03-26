@@ -1,4 +1,4 @@
-package com.example.doftest.ui.theme
+package com.uniuyuni.doftest.ui.theme
 
 import android.app.Activity
 import android.os.Build
