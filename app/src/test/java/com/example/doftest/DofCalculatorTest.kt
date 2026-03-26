@@ -14,6 +14,8 @@ class DofCalculatorTest {
             focalLengthMm = 50.0,
             aperture = 4.0,
             subjectDistanceM = 0.5,
+            cocMode = CocMode.PRINT,
+            considerAiryDisk = false,
         )
 
         assertTrue(result.cocMm > 0.0)
