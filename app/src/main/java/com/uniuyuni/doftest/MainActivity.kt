@@ -38,6 +38,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -138,7 +139,7 @@ private data class HyperfocalDisplayInfo(
 
 enum class CocMode(val label: String) {
     PIXEL("ピクセル"),
-    PRINT("プリント"),
+    PRINT("距離計"),
 }
 
 object DofCalculator {
@@ -188,14 +189,13 @@ object DofCalculator {
         cocMode: CocMode,
         considerAiryDisk: Boolean,
     ): Double {
-        val classicalCocMm = sensorFormat.diagonalMm / 1500.0
         val totalPixels = (megapixels * 1_000_000.0).coerceAtLeast(1.0)
         val aspectRatio = sensorFormat.widthMm / sensorFormat.heightMm
         val sensorWidthPixels = sqrt(totalPixels * aspectRatio)
         val pixelPitchMm = sensorFormat.widthMm / sensorWidthPixels
         val baseCocMm = when (cocMode) {
             CocMode.PIXEL -> pixelPitchMm
-            CocMode.PRINT -> classicalCocMm
+            CocMode.PRINT -> DISTANCE_SCALE_COC_MM
         }
         if (!considerAiryDisk) {
             return baseCocMm
@@ -224,10 +224,8 @@ object DofCalculator {
 
     private const val DEFAULT_WAVELENGTH_MM = 0.00055
     private const val HYPERFOCAL_TOLERANCE_MM = 50.0
+    private const val DISTANCE_SCALE_COC_MM = 0.03
 }
-
-private val SensorFormat.diagonalMm: Double
-    get() = sqrt((widthMm * widthMm) + (heightMm * heightMm))
 
 private class PresetRepository(context: Context) {
     private val sharedPreferences =
@@ -698,33 +696,31 @@ private fun InputCard(
                         }
                     }
                 }
+                Text(
+                    text = "距離計: レンズの被写界深度目盛向け基準（CoC = 0.03mm固定、センサーサイズ非依存）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
 
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                    val buttonWidth = (maxWidth - 8.dp) / 2
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        OutlinedButton(
-                            onClick = { onConsiderAiryDiskChange(false) },
-                            modifier = Modifier.width(buttonWidth),
-                        ) {
-                            Text(
-                                text = if (!considerAiryDisk) "● エアリー無視" else "エアリー無視",
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                        OutlinedButton(
-                            onClick = { onConsiderAiryDiskChange(true) },
-                            modifier = Modifier.width(buttonWidth),
-                        ) {
-                            Text(
-                                text = if (considerAiryDisk) "● エアリー考慮" else "エアリー考慮",
-                                textAlign = TextAlign.Center,
-                            )
-                        }
-                    }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = "エアリーディスク考慮",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Switch(
+                        checked = considerAiryDisk,
+                        onCheckedChange = onConsiderAiryDiskChange,
+                    )
                 }
+                Text(
+                    text = "エアリー: 回折で生じる最小ボケ円を考慮（この値がCoCより大きい場合はエアリー径を優先）",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
 
             SliderField(
