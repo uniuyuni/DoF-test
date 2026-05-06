@@ -1,3 +1,53 @@
 <resources>
     <string name="app_name">DoF test</string>
+    <string name="coc_mode_pixel">ピクセル</string>
+    <string name="coc_mode_print">距離計</string>
+    <string name="summary_title">リアルタイム結果</string>
+    <string name="metric_sensor">センサー</string>
+    <string name="metric_megapixels">総画素数</string>
+    <string name="metric_enter_value">数値を入力</string>
+    <string name="metric_coc">許容錯乱円</string>
+    <string name="metric_hyperfocal">過焦点距離</string>
+    <string name="metric_near_depth">前側の深度</string>
+    <string name="metric_far_depth">後側の深度</string>
+    <string name="metric_total_depth">総被写界深度</string>
+    <string name="input_title">撮影条件</string>
+    <string name="details_close">詳細設定を閉じる</string>
+    <string name="details_open">詳細設定を開く</string>
+    <string name="sensor_size_label">センサーサイズ: %1$s</string>
+    <string name="megapixels_label">総画素数 (MP)</string>
+    <string name="megapixels_error">0.1 以上の数値を入力してください</string>
+    <string name="megapixels_hint">例: 24.2</string>
+    <string name="coc_mode_description">距離計: レンズの被写界深度目盛向け基準（CoC = 0.03mm固定、センサーサイズ非依存）</string>
+    <string name="airy_disk_label">エアリーディスク考慮</string>
+    <string name="airy_disk_description">エアリー: 回折で生じる最小ボケ円を考慮（この値がCoCより大きい場合はエアリー径を優先）</string>
+    <string name="focal_length_label">焦点距離</string>
+    <string name="aperture_label">F値</string>
+    <string name="subject_distance_label">被写体距離</string>
+    <string name="visualization_title">被写界深度イメージ</string>
+    <string name="legend_focus">ピント位置</string>
+    <string name="legend_dof">被写界深度</string>
+    <string name="legend_hyperfocal">過焦点距離</string>
+    <string name="subject_distance_prefix">被写体距離 %1$s</string>
+    <string name="preset_name_label">保存名 (任意)</string>
+    <string name="preset_save_button">現在値を保存</string>
+    <string name="preset_title">プリセット</string>
+    <string name="delete_button">削除</string>
+
+    <string name="sensor_1inch">1インチ</string>
+    <string name="sensor_mft">マイクロフォーサーズ</string>
+    <string name="sensor_apsc">APS-C</string>
+    <string name="sensor_apsc_canon">キャノンAPS-C</string>
+    <string name="sensor_fullframe">フルフレーム</string>
+    <string name="sensor_large">ラージフォーマット</string>
+
+    <string name="language_select">言語選択</string>
+    <string name="language_japanese">日本語</string>
+    <string name="language_english">English</string>
+
+    <string name="label_near">近点</string>
+    <string name="label_focus">合焦</string>
+    <string name="label_far">遠点</string>
+    <string name="label_dof">深度</string>
+    <string name="label_hyperfocal">過焦点</string>
 </resources>

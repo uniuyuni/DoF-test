@@ -1,0 +1,49 @@
+<resources>
+    <string name="app_name">DoF test</string>
+    <string name="coc_mode_pixel">Pixel</string>
+    <string name="coc_mode_print">Print (Scale)</string>
+    <string name="summary_title">Real-time Results</string>
+    <string name="metric_sensor">Sensor</string>
+    <string name="metric_megapixels">Resolution</string>
+    <string name="metric_enter_value">Enter value</string>
+    <string name="metric_coc">Circle of Confusion</string>
+    <string name="metric_hyperfocal">Hyperfocal Distance</string>
+    <string name="metric_near_depth">Front Depth</string>
+    <string name="metric_far_depth">Back Depth</string>
+    <string name="metric_total_depth">Total DoF</string>
+    <string name="input_title">Settings</string>
+    <string name="details_close">Close Details</string>
+    <string name="details_open">Open Details</string>
+    <string name="sensor_size_label">Sensor: %1$s</string>
+    <string name="megapixels_label">Megapixels (MP)</string>
+    <string name="megapixels_error">Enter a value >= 0.1</string>
+    <string name="megapixels_hint">e.g., 24.2</string>
+    <string name="coc_mode_description">Print: Standard for lens DoF scales (Fixed CoC = 0.03mm, sensor independent)</string>
+    <string name="airy_disk_label">Consider Airy Disk</string>
+    <string name="airy_disk_description">Airy: Considers diffraction blur (overrides CoC if larger)</string>
+    <string name="focal_length_label">Focal Length</string>
+    <string name="aperture_label">Aperture</string>
+    <string name="subject_distance_label">Subject Distance</string>
+    <string name="visualization_title">DoF Visualization</string>
+    <string name="legend_focus">Focus Point</string>
+    <string name="legend_dof">Depth of Field</string>
+    <string name="legend_hyperfocal">Hyperfocal</string>
+    <string name="subject_distance_prefix">Subject Distance %1$s</string>
+    <string name="preset_name_label">Preset Name (Optional)</string>
+    <string name="preset_save_button">Save Current</string>
+    <string name="preset_title">Presets</string>
+    <string name="delete_button">Delete</string>
+
+    <string name="sensor_1inch">1 inch</string>
+    <string name="sensor_mft">Micro Four Thirds</string>
+    <string name="sensor_apsc">APS-C</string>
+    <string name="sensor_apsc_canon">Canon APS-C</string>
+    <string name="sensor_fullframe">Full Frame</string>
+    <string name="sensor_large">Large Format</string>
+
+    <string name="label_near">Near</string>
+    <string name="label_focus">Focus</string>
+    <string name="label_far">Far</string>
+    <string name="label_dof">DoF</string>
+    <string name="label_hyperfocal">Hyperfocal</string>
+</resources>

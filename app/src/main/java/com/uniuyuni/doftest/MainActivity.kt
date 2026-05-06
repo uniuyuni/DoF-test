@@ -7,6 +7,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,11 +30,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,6 +48,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -62,12 +71,14 @@ import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.unit.dp
+import androidx.core.os.LocaleListCompat
 import com.uniuyuni.doftest.ui.theme.DoFTestTheme
 import org.json.JSONArray
 import org.json.JSONObject
@@ -75,7 +86,7 @@ import kotlin.math.round
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-class MainActivity : ComponentActivity() {
+class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -88,7 +99,8 @@ class MainActivity : ComponentActivity() {
 }
 
 data class SensorFormat(
-    val label: String,
+    val key: String,
+    val labelRes: Int,
     val widthMm: Double,
     val heightMm: Double,
 )
@@ -137,9 +149,9 @@ private data class HyperfocalDisplayInfo(
     val hyperfocalText: String,
 )
 
-enum class CocMode(val label: String) {
-    PIXEL("ピクセル"),
-    PRINT("距離計"),
+enum class CocMode(val labelRes: Int) {
+    PIXEL(R.string.coc_mode_pixel),
+    PRINT(R.string.coc_mode_print),
 }
 
 object DofCalculator {
@@ -312,12 +324,12 @@ private class PresetRepository(context: Context) {
 }
 
 private val sensorFormats = listOf(
-    SensorFormat("1インチ", 13.2, 8.8),
-    SensorFormat("マイクロフォーサーズ", 17.3, 13.0),
-    SensorFormat("APS-C", 23.6, 15.7),
-    SensorFormat("キャノンAPS-C", 22.3, 14.9),
-    SensorFormat("フルフレーム", 36.0, 24.0),
-    SensorFormat("ラージフォーマット", 44.0, 33.0),
+    SensorFormat("1inch", R.string.sensor_1inch, 13.2, 8.8),
+    SensorFormat("mft", R.string.sensor_mft, 17.3, 13.0),
+    SensorFormat("apsc", R.string.sensor_apsc, 23.6, 15.7),
+    SensorFormat("apsc_canon", R.string.sensor_apsc_canon, 22.3, 14.9),
+    SensorFormat("fullframe", R.string.sensor_fullframe, 36.0, 24.0),
+    SensorFormat("large", R.string.sensor_large, 44.0, 33.0),
 )
 
 private val apertureStops = listOf(1.0, 1.4, 2.0, 2.8, 4.0, 5.6, 8.0, 11.0, 16.0, 22.0, 32.0)
@@ -328,6 +340,7 @@ private fun cocModeFromName(name: String): CocMode =
 private fun isAtSubjectDistanceMax(currentValue: Float, maxValue: Float): Boolean =
     kotlin.math.abs(currentValue - maxValue) <= 0.0001f
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DofCalculatorApp() {
     val context = LocalContext.current
@@ -338,7 +351,7 @@ fun DofCalculatorApp() {
     var sensorIndex by rememberSaveable {
         mutableStateOf(
             savedSession?.let { state ->
-                sensorFormats.indexOfFirst { it.label == state.sensorLabel }.takeIf { it >= 0 } ?: 4
+                sensorFormats.indexOfFirst { it.key == state.sensorLabel }.takeIf { it >= 0 } ?: 4
             } ?: 4
         )
     }
@@ -365,6 +378,7 @@ fun DofCalculatorApp() {
     var sensorMenuExpanded by remember { mutableStateOf(false) }
     var detailsExpanded by rememberSaveable { mutableStateOf(savedSession?.detailsExpanded ?: false) }
     var isSubjectDragActive by remember { mutableStateOf(false) }
+    var languageMenuExpanded by remember { mutableStateOf(false) }
 
     val sensorFormat = sensorFormats[sensorIndex]
     val aperture = apertureStops[apertureIndex]
@@ -420,7 +434,7 @@ fun DofCalculatorApp() {
         val megapixelsValue = megapixelsInput.toDoubleOrNull() ?: return@LaunchedEffect
         repository.saveSessionState(
             DofSessionState(
-                sensorLabel = sensorFormats[sensorIndex].label,
+                sensorLabel = sensorFormats[sensorIndex].key,
                 megapixels = megapixelsValue,
                 focalLengthMm = focalLengthMm.toInt(),
                 aperture = apertureStops[apertureIndex],
@@ -434,6 +448,46 @@ fun DofCalculatorApp() {
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.app_name)) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { languageMenuExpanded = true }) {
+                            Icon(
+                                Icons.Default.Language,
+                                contentDescription = stringResource(R.string.language_select)
+                            )
+                        }
+                        DropdownMenu(
+                            expanded = languageMenuExpanded,
+                            onDismissRequest = { languageMenuExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.language_japanese)) },
+                                onClick = {
+                                    val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("ja")
+                                    AppCompatDelegate.setApplicationLocales(appLocale)
+                                    languageMenuExpanded = false
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.language_english)) },
+                                onClick = {
+                                    val appLocale: LocaleListCompat = LocaleListCompat.forLanguageTags("en")
+                                    AppCompatDelegate.setApplicationLocales(appLocale)
+                                    languageMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface,
+                )
+            )
+        }
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -501,12 +555,12 @@ fun DofCalculatorApp() {
                 onSaveClick = {
                     val resolvedMegapixels = megapixels ?: return@PresetCard
                     val name = presetName.ifBlank {
-                        "${sensorFormat.label} ${focalLengthMm.toInt()}mm F${formatAperture(aperture)}"
+                        "${context.getString(sensorFormat.labelRes)} ${focalLengthMm.toInt()}mm F${formatAperture(aperture)}"
                     }
                     val preset = DofPreset(
                         id = System.currentTimeMillis(),
                         name = name,
-                        sensorLabel = sensorFormat.label,
+                        sensorLabel = sensorFormat.key,
                         megapixels = resolvedMegapixels,
                         focalLengthMm = focalLengthMm.toInt(),
                         aperture = aperture,
@@ -519,7 +573,7 @@ fun DofCalculatorApp() {
                     presetName = ""
                 },
                 onPresetSelected = { preset ->
-                    val presetSensorIndex = sensorFormats.indexOfFirst { it.label == preset.sensorLabel }
+                    val presetSensorIndex = sensorFormats.indexOfFirst { it.key == preset.sensorLabel }
                     if (presetSensorIndex >= 0) {
                         sensorIndex = presetSensorIndex
                     }
@@ -556,26 +610,26 @@ private fun SummaryCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(
-                text = "リアルタイム結果",
+                text = stringResource(R.string.summary_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
-            MetricRow("センサー", sensorFormat.label)
-            MetricRow("総画素数", megapixels?.let { "${formatNumber(it, 1)} MP" } ?: "数値を入力")
-            MetricRow("許容錯乱円", result?.let { "${formatNumber(it.cocMm * 1000.0, 1)} µm" } ?: "-")
-            MetricRow("過焦点距離", result?.let { formatDistance(it.hyperfocalMm) } ?: "-")
+            MetricRow(stringResource(R.string.metric_sensor), stringResource(sensorFormat.labelRes))
+            MetricRow(stringResource(R.string.metric_megapixels), megapixels?.let { "${formatNumber(it, 1)} MP" } ?: stringResource(R.string.metric_enter_value))
+            MetricRow(stringResource(R.string.metric_coc), result?.let { "${formatNumber(it.cocMm * 1000.0, 1)} µm" } ?: "-")
+            MetricRow(stringResource(R.string.metric_hyperfocal), result?.let { formatDistance(it.hyperfocalMm) } ?: "-")
             MetricRow(
-                "前側の深度",
+                stringResource(R.string.metric_near_depth),
                 result?.let { formatDistance(it.frontDepthMm(subjectDistanceMm)) } ?: "-",
             )
             MetricRow(
-                "後側の深度",
+                stringResource(R.string.metric_far_depth),
                 result?.let {
                     it.backDepthMm(subjectDistanceMm)?.let(::formatDistance) ?: "∞"
                 } ?: "-",
             )
             MetricRow(
-                "総被写界深度",
+                stringResource(R.string.metric_total_depth),
                 result?.let {
                     it.totalDepthMm?.let(::formatDistance) ?: "∞"
                 } ?: "-",
@@ -613,7 +667,7 @@ private fun InputCard(
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
             Text(
-                text = "撮影条件",
+                text = stringResource(R.string.input_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -624,9 +678,9 @@ private fun InputCard(
             ) {
                 Text(
                     text = if (detailsExpanded) {
-                        "詳細設定を閉じる"
+                        stringResource(R.string.details_close)
                     } else {
-                        "詳細設定を開く"
+                        stringResource(R.string.details_open)
                     },
                     modifier = Modifier.fillMaxWidth(),
                     textAlign = TextAlign.Start,
@@ -640,7 +694,7 @@ private fun InputCard(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Text(
-                            text = "センサーサイズ: ${sensorFormat.label}",
+                            text = stringResource(R.string.sensor_size_label, stringResource(sensorFormat.labelRes)),
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Start,
                         )
@@ -652,7 +706,7 @@ private fun InputCard(
                     ) {
                         sensorFormats.forEachIndexed { index: Int, option: SensorFormat ->
                             DropdownMenuItem(
-                                text = { Text(option.label) },
+                                text = { Text(stringResource(option.labelRes)) },
                                 onClick = {
                                     onSensorSelected(index)
                                     onSensorMenuExpandedChange(false)
@@ -666,11 +720,11 @@ private fun InputCard(
                     value = megapixelsInput,
                     onValueChange = onMegapixelsChange,
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("総画素数 (MP)") },
+                    label = { Text(stringResource(R.string.megapixels_label)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     supportingText = {
                         Text(
-                            if (megapixelsError) "0.1 以上の数値を入力してください" else "例: 24.2"
+                            if (megapixelsError) stringResource(R.string.megapixels_error) else stringResource(R.string.megapixels_hint)
                         )
                     },
                     isError = megapixelsError,
@@ -683,13 +737,13 @@ private fun InputCard(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        CocMode.values().forEach { option ->
+                        CocMode.entries.forEach { option ->
                             OutlinedButton(
                                 onClick = { onCocModeChange(option) },
                                 modifier = Modifier.width(buttonWidth),
                             ) {
                                 Text(
-                                    text = if (option == cocMode) "● ${option.label}" else option.label,
+                                    text = if (option == cocMode) "● ${stringResource(option.labelRes)}" else stringResource(option.labelRes),
                                     textAlign = TextAlign.Center,
                                 )
                             }
@@ -697,7 +751,7 @@ private fun InputCard(
                     }
                 }
                 Text(
-                    text = "距離計: レンズの被写界深度目盛向け基準（CoC = 0.03mm固定、センサーサイズ非依存）",
+                    text = stringResource(R.string.coc_mode_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -708,7 +762,7 @@ private fun InputCard(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = "エアリーディスク考慮",
+                        text = stringResource(R.string.airy_disk_label),
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Switch(
@@ -717,14 +771,14 @@ private fun InputCard(
                     )
                 }
                 Text(
-                    text = "エアリー: 回折で生じる最小ボケ円を考慮（この値がCoCより大きい場合はエアリー径を優先）",
+                    text = stringResource(R.string.airy_disk_description),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
             SliderField(
-                label = "焦点距離",
+                label = stringResource(R.string.focal_length_label),
                 valueLabel = "${focalLengthMm.toInt()} mm",
                 value = focalLengthMm,
                 valueRange = 1f..135f,
@@ -733,7 +787,7 @@ private fun InputCard(
             )
 
             SliderField(
-                label = "F値",
+                label = stringResource(R.string.aperture_label),
                 valueLabel = "F${formatAperture(apertureStops[apertureIndex])}",
                 value = apertureIndex.toFloat(),
                 valueRange = 0f..(apertureStops.lastIndex.toFloat()),
@@ -742,7 +796,7 @@ private fun InputCard(
             )
 
             SliderField(
-                label = "被写体距離",
+                label = stringResource(R.string.subject_distance_label),
                 valueLabel = "${formatNumber(subjectDistanceM.toDouble(), if (subjectDistanceM == subjectDistanceMaxM) 2 else 1)} m",
                 value = subjectDistanceM,
                 valueRange = 0.1f..subjectDistanceMaxM,
@@ -799,7 +853,7 @@ private fun VisualizationCard(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "被写界深度イメージ",
+                text = stringResource(R.string.visualization_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -825,9 +879,9 @@ private fun VisualizationCard(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                LegendItem("ピント位置", MaterialTheme.colorScheme.primary)
-                LegendItem("被写界深度", Color(0xFF5E8B7E))
-                LegendItem("過焦点距離", Color(0xFFC97C5D))
+                LegendItem(stringResource(R.string.legend_focus), MaterialTheme.colorScheme.primary)
+                LegendItem(stringResource(R.string.legend_dof), Color(0xFF5E8B7E))
+                LegendItem(stringResource(R.string.legend_hyperfocal), Color(0xFFC97C5D))
             }
         }
     }
@@ -1007,7 +1061,7 @@ private fun DofDiagram(
     ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
             Text(
-                text = "被写体距離 ${formatDistanceMeters(displayFocusMm)}",
+                text = stringResource(R.string.subject_distance_prefix, formatDistanceMeters(displayFocusMm)),
                 style = MaterialTheme.typography.labelMedium,
                 color = labelColor,
             )
@@ -1021,28 +1075,28 @@ private fun DofDiagram(
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 DiagramDistanceLabel(
-                    "Near",
+                    stringResource(R.string.label_near),
                     if (isAtHyperfocal) hyperfocalDisplayInfo.nearText else formatDistanceMeters(displayNearMm),
                 )
                 DiagramDistanceLabel(
-                    "Focus",
+                    stringResource(R.string.label_focus),
                     if (isAtHyperfocal) hyperfocalDisplayInfo.hyperfocalText else formatDistanceMeters(displayFocusMm),
                 )
-                DiagramDistanceLabel("Far", displayFarMm?.let(::formatDistanceMeters) ?: "∞")
+                DiagramDistanceLabel(stringResource(R.string.label_far), displayFarMm?.let(::formatDistanceMeters) ?: "∞")
             }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 DiagramDistanceLabel(
-                    "DoF",
+                    stringResource(R.string.label_dof),
                     buildDofRangeText(
                         frontDepthMm = (displayFocusMm - displayNearMm).coerceAtLeast(0.0),
                         backDepthMm = displayFarMm?.minus(displayFocusMm)?.coerceAtLeast(0.0),
                     ),
                 )
                 DiagramDistanceLabel(
-                    "Hyperfocal",
+                    stringResource(R.string.label_hyperfocal),
                     "${hyperfocalDisplayInfo.nearText} / ${hyperfocalDisplayInfo.hyperfocalText}",
                 )
             }
@@ -1126,7 +1180,7 @@ private fun PresetCard(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
-                text = "プリセット",
+                text = stringResource(R.string.preset_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
             )
@@ -1134,14 +1188,14 @@ private fun PresetCard(
                 value = presetName,
                 onValueChange = onPresetNameChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("保存名 (任意)") },
+                label = { Text(stringResource(R.string.preset_name_label)) },
                 singleLine = true,
             )
             Button(
                 onClick = onSaveClick,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("現在値を保存")
+                Text(stringResource(R.string.preset_save_button))
             }
             if (presets.isNotEmpty()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1160,13 +1214,13 @@ private fun PresetCard(
                                     fontWeight = FontWeight.Medium,
                                 )
                                 Text(
-                                    text = "${preset.sensorLabel} / ${preset.focalLengthMm}mm / F${formatAperture(preset.aperture)} / ${formatNumber(preset.subjectDistanceM, 1)}m",
+                                    text = "${stringResource(sensorFormats.firstOrNull { it.key == preset.sensorLabel }?.labelRes ?: R.string.sensor_fullframe)} / ${preset.focalLengthMm}mm / F${formatAperture(preset.aperture)} / ${formatNumber(preset.subjectDistanceM, 1)}m",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             }
                             TextButton(onClick = { onPresetDelete(preset) }) {
-                                Text("削除")
+                                Text(stringResource(R.string.delete_button))
                             }
                         }
                     }
